@@ -15,31 +15,25 @@ library(DT)
 # Define server logic required to draw a histogram
 shinyServer(function(input, output, session) {
   
-  penguins <- palmerpenguins::penguins
+  penguins <- reactive({
+    palmerpenguins::penguins |> 
+      drop_na() |> 
+      dplyr::mutate(highlight_species = ifelse(species == input$species_sel, "highlight", "normal"),
+                    highlight_island = ifelse(island == input$island_sel, "highlight", "normal"),
+                    highlight_sex = ifelse(sex == input$sex_sel, "highlight", "normal"))
+    })
   
-  user_df <- tibble::tribble(~penguin_id, ~species, ~island, ~sex,
-                            "Penguin 1", 
-                            as.character(selectInput(paste0("species_sel1"), "", choices = unique(penguins$species), width = "100px")),
-                            as.character(selectInput(paste0("island_sel1"), "", choices = unique(penguins$island), width = "100px")), 
-                            as.character(selectInput(paste0("sex_sel1"), "", choices = unique(penguins$sex), width = "100px"))
-  )
+  user_df <- tibble::tribble(~penguin_id, ~species, ~island, ~sex)
 
   user_df <- shiny::reactiveVal(user_df)
   
   output$create_penguins <- DT::renderDataTable({
     DT::datatable(
       user_df(),
-      editable = TRUE,
+      editable = FALSE,
       escape = FALSE,
       selection = 'none',
-      options = list(dom = 't', paging = FALSE, ordering = FALSE),
-      callback = JS("table.rows().every(function(i, tab, row) {
-        var $this = $(this.node());
-        $this.attr('id', this.data()[0]);
-        $this.addClass('shiny-input-container');
-      });
-      Shiny.unbindAll(table.table().node());
-      Shiny.bindAll(table.table().node());"),
+      #options = list(dom = 't', paging = FALSE, ordering = FALSE),
       colnames = c("Penguin ID", "Species", "Island", "Sex"),
       rownames = FALSE
     )
@@ -63,29 +57,42 @@ shinyServer(function(input, output, session) {
   # Add Penguin Button
   shiny::observeEvent(input$add_penguin, {
     table <- rbind(user_df(), data.frame(penguin_id = paste("Penguin", nrow(user_df()) + 1),
-                                         species = as.character(selectInput(paste0("species_sel", (nrow(user_df()) + 1)), "", choices = unique(penguins$species), width = "100px")),
-                                         island = as.character(selectInput(paste0("island_sel", (nrow(user_df()) + 1)), "", choices = unique(penguins$island), width = "100px")),
-                                         sex = as.character(selectInput(paste0("sex_sel", (nrow(user_df()) + 1)), "", choices = unique(penguins$sex), width = "100px"))))
+                                         species = input$species_sel,
+                                         island = input$island_sel,
+                                         sex = input$sex_sel))
     
     user_df(table)
+    
+    shinyWidgets::show_alert(
+      title = "Penguin Added!",
+      type = "success",
+      btn_labels = "Close"
+    )
     })
-  
-  reactive(print(input$species_sel1))
   
   # Plots
   output$penguin_plot_1 <- renderPlot({
-      ggplot2::ggplot(data = penguins, aes(x = species)) +
-        ggplot2::geom_bar()
+    ggplot2::ggplot(data = penguins(), aes(x = species, fill = highlight_species)) +
+      ggplot2::geom_bar() +
+      scale_fill_manual(values=c("#EF0303", "grey")) +
+      theme_light() +
+      theme(legend.position = "none")
   })
   
   output$penguin_plot_2 <- renderPlot({
-    ggplot2::ggplot(data = penguins, aes(x = island)) +
-      ggplot2::geom_bar()
+    ggplot2::ggplot(data = penguins(), aes(x = island, fill = highlight_island)) +
+      ggplot2::geom_bar() +
+      scale_fill_manual(values=c("#EF0303", "grey")) +
+      theme_light() +
+      theme(legend.position = "none")
   })
 
   output$penguin_plot_3 <- renderPlot({
-    ggplot2::ggplot(data = penguins, aes(x = sex)) +
-      ggplot2::geom_bar()
+    ggplot2::ggplot(data = penguins(), aes(x = sex, fill = highlight_sex)) +
+      ggplot2::geom_bar() +
+      scale_fill_manual(values=c("#EF0303", "grey")) +
+      theme_light() +
+      theme(legend.position = "none")
   })
   
 })
