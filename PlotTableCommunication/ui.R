@@ -28,6 +28,7 @@ shinyUI(fluidPage(
       shinyVirga::col_8(),
       shinyVirga::col_2(
         bs4Dash::actionButton(
+          style = "color: #FFFFFF; background-color: #5874FF;",
           "remove_penguin",
           "Remove last penguin",
           icon = shiny::icon("minus"),
@@ -36,11 +37,13 @@ shinyUI(fluidPage(
       ),
       shinyVirga::col_2(
         bs4Dash::actionButton(
+          style = "color: #FFFFFF; background-color: #5874FF;",
           "add_penguin",
           "Add a penguin",
           icon = shiny::icon("plus"),
           width = "100%"
         )
       )
-    )
+    ),
+    verbatimTextOutput('view_penguins')
 ))
