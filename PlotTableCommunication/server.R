@@ -45,46 +45,15 @@ shinyServer(function(input, output, session) {
     tidyr::pivot_longer(median:q3, names_to = "type", values_to = "y") |>
     dplyr::mutate(label = scales::unit_format(unit = "M", scale = 1e-6, accuracy = .01)(y))
   
-  counter_species <- reactiveVal(0)
-  counter_island <- reactiveVal(0)
-  counter_hydrology <- reactiveVal(0)
-
-  get_species_sel_id <- reactive({
-    isolate(counter_species(counter_species() + 1))
-    paste0("species_sel", counter_species())
-  })
-
-  get_island_sel_id <- reactive({
-    isolate(counter_island(counter_island() + 1))
-    paste0("island_sel", counter_island())
-  })
-
-  get_hydrology_sel_id <- reactive({
-    isolate(counter_hydrology(counter_hydrology() + 1))
-    paste0("hydrology_sel", counter_hydrology())
-  })
-
-  user_df <- reactive({
-    df <- tibble::tribble(~penguin_id, ~species, ~island, ~hydrology,
-                          NA, NA, NA, NA)
-
-    for (i in 1:nrow(df)) {
-      df$penguin_id[i] <- paste("Penguin", i)
-      df$species[i] <- as.character(selectInput(paste0(get_species_sel_id(), i),
-                                                NULL,
-                                                choices = unique(penguins$species),
-                                                width = "100px"))
-      df$island[i] <- as.character(selectInput(paste0(get_island_sel_id(), i),
-                                                NULL,
-                                                choices = unique(penguins$island),
-                                                width = "100px"))
-      df$hydrology[i] <- as.character(selectInput(paste0(get_hydrology_sel_id(), i),
-                                                NULL,
-                                                choices = unique(hydrology_df$hydrology),
-                                                width = "100px"))
-    }
-    df
-  })
+  penguins <- reactive({
+    palmerpenguins::penguins |> 
+      drop_na() |> 
+      dplyr::mutate(highlight_species = ifelse(species == input$species_sel, "highlight", "normal"),
+                    highlight_island = ifelse(island == input$island_sel, "highlight", "normal"),
+                    highlight_sex = ifelse(sex == input$sex_sel, "highlight", "normal"))
+    })
+  
+  user_df <- tibble::tribble(~penguin_id, ~species, ~island, ~sex)
   
   # user_df <- tibble::tribble(~penguin_id, ~species, ~island, ~hydrology,
   #                           "Penguin 1",
@@ -131,18 +100,11 @@ shinyServer(function(input, output, session) {
   output$create_penguins <- DT::renderDataTable({
     DT::datatable(
       user_df(),
-      #editable = FALSE,
+      editable = FALSE,
       escape = FALSE,
       selection = 'none',
-      options = list(dom = 't', paging = FALSE, ordering = FALSE),
-      callback = JS("table.rows().every(function(i, tab, row) {
-        var $this = $(this.node());
-        $this.attr('id', this.data()[0]);
-        $this.addClass('shiny-input-container');
-      });
-      Shiny.unbindAll(table.table().node());
-      Shiny.bindAll(table.table().node());"),
-      colnames = c("Penguin ID", "Species", "Island", "Hydrology"),
+      #options = list(dom = 't', paging = FALSE, ordering = FALSE),
+      colnames = c("Penguin ID", "Species", "Island", "Sex"),
       rownames = FALSE
     )
   })
@@ -164,12 +126,17 @@ shinyServer(function(input, output, session) {
   # Add Penguin Button
   shiny::observeEvent(input$add_penguin, {
     table <- rbind(user_df(), data.frame(penguin_id = paste("Penguin", nrow(user_df()) + 1),
-                                         species = as.character(selectInput(paste0("species_sel", (nrow(user_df()) + 1)), label = NULL, choices = unique(penguins$species))),
-                                         island = as.character(selectInput(paste0("island_sel", (nrow(user_df()) + 1)), label = NULL, choices = unique(penguins$island))),
-                                         hydrology = as.character(selectInput(paste0("hydrology_sel", (nrow(user_df()) + 1)), label = NULL, choices = unique(hydrology_df$hydrology)))))
-
+                                         species = input$species_sel,
+                                         island = input$island_sel,
+                                         sex = input$sex_sel))
+    
     user_df(table)
-    #print(input$species_sel2)
+    
+    shinyWidgets::show_alert(
+      title = "Penguin Added!",
+      type = "success",
+      btn_labels = "Close"
+    )
     })
   
   output$view_penguins = renderPrint({
@@ -178,13 +145,19 @@ shinyServer(function(input, output, session) {
   
   # Plots
   output$penguin_plot_1 <- renderPlot({
-      ggplot2::ggplot(data = penguins, aes(x = species)) +
-        ggplot2::geom_bar()
+    ggplot2::ggplot(data = penguins(), aes(x = species, fill = highlight_species)) +
+      ggplot2::geom_bar() +
+      scale_fill_manual(values=c("#EF0303", "grey")) +
+      theme_light() +
+      theme(legend.position = "none")
   })
   
   output$penguin_plot_2 <- renderPlot({
-    ggplot2::ggplot(data = penguins, aes(x = island)) +
-      ggplot2::geom_bar()
+    ggplot2::ggplot(data = penguins(), aes(x = island, fill = highlight_island)) +
+      ggplot2::geom_bar() +
+      scale_fill_manual(values=c("#EF0303", "grey")) +
+      theme_light() +
+      theme(legend.position = "none")
   })
 
   # Hydrology Plot
