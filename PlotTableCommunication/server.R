@@ -16,11 +16,23 @@ library(here)
 # Define server logic required to draw a histogram
 shinyServer(function(input, output, session) {
   
-  penguins <- palmerpenguins::penguins
   hydrology_df <- readr::read_csv(here("data", "hydrology_data_combined_tidy.csv"))
   
+  penguins <- reactive({
+    palmerpenguins::penguins |> 
+      drop_na() |> 
+      dplyr::mutate(highlight_species = ifelse(species == input$species_sel, "highlight", "normal"),
+                    highlight_island = ifelse(island == input$island_sel, "highlight", "normal"))
+  })
+  
+  hydrology_df_reactive <- reactive({
+    hydrology_df |>
+      drop_na() |>
+      dplyr::mutate(highlight_hydrology = ifelse(hydrology == input$hydrology_sel, "highlight", "normal"))
+  })
+  
   # Generating summary data
-  summary_data = hydrology_df |>
+  summary_data <- reactive({hydrology_df_reactive() |>
     dplyr::mutate(hydrology = factor(hydrology, 
                                      levels = c("stress_test", 
                                                 "pluvial_removed", 
@@ -44,58 +56,11 @@ shinyServer(function(input, output, session) {
     ) |>
     tidyr::pivot_longer(median:q3, names_to = "type", values_to = "y") |>
     dplyr::mutate(label = scales::unit_format(unit = "M", scale = 1e-6, accuracy = .01)(y))
+  })
   
-  penguins <- reactive({
-    palmerpenguins::penguins |> 
-      drop_na() |> 
-      dplyr::mutate(highlight_species = ifelse(species == input$species_sel, "highlight", "normal"),
-                    highlight_island = ifelse(island == input$island_sel, "highlight", "normal"),
-                    highlight_sex = ifelse(sex == input$sex_sel, "highlight", "normal"))
-    })
+  user_df <- tibble::tribble(~penguin_id, ~species, ~island, ~hydrology)
   
-  user_df <- tibble::tribble(~penguin_id, ~species, ~island, ~sex)
-  
-  # user_df <- tibble::tribble(~penguin_id, ~species, ~island, ~hydrology,
-  #                           "Penguin 1",
-  #                           as.character(selectInput(inputId = "species_sel1", label = NULL, choices = unique(penguins$species))),
-  #                           as.character(selectInput(inputId = "island_sel1", label = NULL, choices = unique(penguins$island))),
-  #                           as.character(selectInput(inputId = "hydrology_sel1", label = NULL, choices = unique(hydrology_df$hydrology)))
-  # )
-  # 
-  # user_df <- shiny::reactiveVal(user_df)
-  
-  # num_rows <- reactiveVal(2)
-  # 
-  # user_df <- reactive({
-  #   #print(paste("Penguin", num_rows()))
-  #   df <- data.frame()
-  # 
-  # 
-  #   for (i in 1:num_rows()) {
-  #     df$penguin_id[i] <- paste("Penguin", num_rows())
-  #     df$species[i] <- as.character(selectInput(inputId = paste0("species_sel", nrow(df)), label = NULL, choices = unique(penguins$species), width = "100px"))
-  #     df$island[i] <- as.character(selectInput(inputId = paste0("island_sel", nrow(df)), label = NULL, choices = unique(penguins$island), width = "100px"))
-  #     df$hydrology[i] <- as.character(selectInput(inputId = paste0("hydrology_sel", nrow(df)), label = NULL, choices = unique(hydrology_df$hydrology), width = "100px"))
-  #   }
-  # 
-  #   df
-  # })
-
-  # row_counter <- reactiveVal(1)
-  # 
-  # user_df <- reactive({
-  #   
-  #   for (i in 1:row_counter()) {
-  #     df <- data.frame(penguin_id = paste("Penguin", row_counter()),
-  #                      species = as.character(selectInput(inputId = paste0("species_sel", row_counter()), label = NULL, choices = unique(penguins$species))),
-  #                      island = as.character(selectInput(inputId = paste0("island_sel", row_counter()), label = NULL, choices = unique(penguins$island))),
-  #                      hydrology = as.character(selectInput(inputId = paste0("hydrology_sel", row_counter()), label = NULL, choices = unique(hydrology_df$hydrology)))
-  #                      )
-  #     row_counter(row_counter() + 1)
-  #   }
-  #   df
-  # })
-  
+  user_df <- reactiveVal(user_df)
   
   output$create_penguins <- DT::renderDataTable({
     DT::datatable(
@@ -104,7 +69,7 @@ shinyServer(function(input, output, session) {
       escape = FALSE,
       selection = 'none',
       #options = list(dom = 't', paging = FALSE, ordering = FALSE),
-      colnames = c("Penguin ID", "Species", "Island", "Sex"),
+      colnames = c("Penguin ID", "Species", "Island", "Hydrology"),
       rownames = FALSE
     )
   })
@@ -128,7 +93,7 @@ shinyServer(function(input, output, session) {
     table <- rbind(user_df(), data.frame(penguin_id = paste("Penguin", nrow(user_df()) + 1),
                                          species = input$species_sel,
                                          island = input$island_sel,
-                                         sex = input$sex_sel))
+                                         hydrology = input$hydrology_sel))
     
     user_df(table)
     
@@ -162,7 +127,7 @@ shinyServer(function(input, output, session) {
 
   # Hydrology Plot
   output$penguin_plot_3 <- renderPlot({
-    ggplot2::ggplot(hydrology_df, ggplot2::aes(x = factor(hydrology, 
+    ggplot2::ggplot(hydrology_df_reactive(), ggplot2::aes(x = factor(hydrology, 
                                                                      levels = c("stress_test", 
                                                                                 "pluvial_removed",
                                                                                 "full_hydro" ,
@@ -179,7 +144,7 @@ shinyServer(function(input, output, session) {
                                                                                 "CMIP3"
                                                                                 
                                                                      )
-    ), y = yearly_flow, fill = hydrology)) +
+    ), y = yearly_flow, fill = highlight_hydrology)) +
       see::geom_violinhalf(position = ggplot2::position_nudge(x = 0.1),
                            trim = FALSE
       ) +
@@ -190,10 +155,9 @@ shinyServer(function(input, output, session) {
       ggplot2::scale_y_continuous(labels = scales::unit_format(unit = "M", scale = 1e-06), 
                                   name = "Average Annual Flow at Lees Ferry (MAF)") +
       ggplot2::xlab("Hydrology") +
-      ggplot2::scale_fill_brewer(palette = "Accent", 
-                                 guide = 'none'
-      ) +
-      ggplot2::geom_text(data = summary_data, ggplot2::aes(x = hydrology, y = y, label = label), 
+      scale_fill_manual(values=c("#EF0303", "grey")) +
+      theme(legend.position = "none") +
+      ggplot2::geom_text(data = summary_data(), ggplot2::aes(x = hydrology, y = y, label = label), 
                          inherit.aes = FALSE, 
                          position = ggplot2::position_nudge(x = -0.3), 
                          size = 4

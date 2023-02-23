@@ -12,6 +12,7 @@ library(palmerpenguins)
 library(tidyverse)
 library(DT)
 
+hydrology_df <- readr::read_csv(here("data", "hydrology_data_combined_tidy.csv"))
 
 # Define UI for application that draws a histogram
 shinyUI(fluidPage(
@@ -21,7 +22,8 @@ shinyUI(fluidPage(
 
     fluidRow(column(4, plotOutput("penguin_plot_1")),
              column(4, plotOutput("penguin_plot_2")),
-             column(4, plotOutput("penguin_plot_3"))),
+             column(4, plotOutput("penguin_plot_3"))
+             ),
     hr(),
     fluidRow(
       h3("Select values to create a new penguin:")
@@ -29,7 +31,7 @@ shinyUI(fluidPage(
     fluidRow(
       column(4, selectizeInput("species_sel", "Species:", choices = unique(penguins$species), selected = NULL)),
       column(4, selectizeInput("island_sel", "Island:", choices = unique(penguins$island), selected = NULL)),
-      column(4, selectizeInput("sex_sel", "Sex:", choices = unique(penguins$sex), selected = NULL))),
+      column(4, selectizeInput("hydrology_sel", "Hydrology:", choices = unique(hydrology_df$hydrology), selected = NULL))),
     fluidRow(
       column(10),
       column(2, bs4Dash::actionButton(
@@ -54,15 +56,6 @@ shinyUI(fluidPage(
           width = "100%"
         )
       ),
-      shinyVirga::col_2(
-        bs4Dash::actionButton(
-          style = "color: #FFFFFF; background-color: #5874FF;",
-          "add_penguin",
-          "Add a penguin",
-          icon = shiny::icon("plus"),
-          width = "100%"
-        )
-      )
     ),
     verbatimTextOutput('view_penguins')
 ))
