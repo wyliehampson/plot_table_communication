@@ -164,4 +164,6 @@ shinyServer(function(input, output, session) {
       )
   })
   
+  test <- "test"
+  
 })
